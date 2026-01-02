@@ -1,0 +1,53 @@
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-kicker">Premium Streaming • Vertical Player • Fast SPA</div>
+    <h1 class="hero-title">Cinematic. Minimal. Solid.</h1>
+    <p class="hero-sub">Animasi halus, cache cepat, resume otomatis, dan “Up Next” seperti app premium.</p>
+    <div class="hero-actions">
+      <a class="btn spa-link" href="#trending"><i class="ri-play-circle-line"></i> Mulai Trending</a>
+      <a class="btn btn-outline spa-link" href="#vip"><i class="ri-vip-crown-line"></i> VIP Picks</a>
+    </div>
+  </div>
+</section>
+
+<section id="continue" class="section">
+  <div class="section-head">
+    <h2>Continue Watching</h2>
+    <div class="hint">Resume dari terakhir</div>
+  </div>
+  <div id="cw" class="grid"></div>
+</section>
+
+<section id="foryou" class="section">
+  <div class="section-head">
+    <h2>For You</h2>
+    <div class="hint">Rekomendasi</div>
+  </div>
+  <%- include('partials/_grid', { list: foryou || [] }) %>
+</section>
+
+<section id="vip" class="section">
+  <div class="section-head">
+    <h2>VIP</h2>
+    <div class="hint">Pilihan eksklusif</div>
+  </div>
+  <%- include('partials/_grid', { list: vip || [] }) %>
+</section>
+
+<section id="trending" class="section">
+  <div class="section-head">
+    <h2>Trending</h2>
+    <div class="hint">Paling banyak ditonton</div>
+  </div>
+  <%- include('partials/_grid', { list: trending || [] }) %>
+</section>
+
+<section id="latest" class="section">
+  <div class="section-head">
+    <h2>Latest</h2>
+    <div class="hint">Rilis terbaru</div>
+  </div>
+  <%- include('partials/_grid', { list: latest || [] }) %>
+</section>
+
+<script>window.__page="home";</script>
