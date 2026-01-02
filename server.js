@@ -16,7 +16,38 @@ const isXHR = (req) =>
   req.get("X-Requested-With") === "XMLHttpRequest" ||
   req.get("Accept")?.includes("text/partial");
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Ambil array dari berbagai bentuk response:
+ * - langsung array
+ * - {data:[...]} / {list:[...]} / {result:[...]} / {items:[...]} / {rows:[...]} / {books:[...]}
+ * - nested: {data:{list:[...]}} dll (1 tingkat)
+ */
+function coerceArray(x) {
+  if (!x) return [];
+  if (Array.isArray(x)) return x;
+
+  // 1st level candidates
+  const keys = ["data", "list", "result", "items", "rows", "books", "chapters", "chapterList"];
+  for (const k of keys) {
+    if (Array.isArray(x[k])) return x[k];
+  }
+
+  // 2nd level (data/list might be object)
+  for (const k of ["data", "result"]) {
+    const v = x[k];
+    if (v && typeof v === "object") {
+      for (const kk of keys) {
+        if (Array.isArray(v[kk])) return v[kk];
+      }
+    }
+  }
+
+  return [];
+}
 
 async function apiGet(path, { timeoutMs = 9000, retries = 2 } = {}) {
   let lastErr = null;
@@ -45,7 +76,8 @@ async function apiGet(path, { timeoutMs = 9000, retries = 2 } = {}) {
     } catch (e) {
       clearTimeout(t);
       lastErr = e;
-      // retry network/timeout
+
+      // retry untuk network/timeout
       if (i < retries) {
         await sleep(350 * (i + 1));
         continue;
@@ -57,11 +89,15 @@ async function apiGet(path, { timeoutMs = 9000, retries = 2 } = {}) {
 }
 
 async function safeApiGet(path, fallback) {
-  try { return await apiGet(path); }
-  catch { return fallback; }
+  try {
+    return await apiGet(path);
+  } catch {
+    return fallback;
+  }
 }
 
 function normalizeDramaCard(d) {
+  if (!d || typeof d !== "object") return null;
   return {
     bookId: d.bookId,
     bookName: d.bookName,
@@ -70,6 +106,7 @@ function normalizeDramaCard(d) {
     playCount: d.playCount,
     tags: d.tags || [],
     totalChapterNum: d.totalChapterNum,
+    chapterImg: d.chapterImg,
     cdnList: d.cdnList || [],
     videoPath: d.videoPath
   };
@@ -77,38 +114,46 @@ function normalizeDramaCard(d) {
 
 function pickDefaultQuality(cdnList) {
   if (!Array.isArray(cdnList) || cdnList.length === 0) return { qualities: [], def: null };
-  const cdn = cdnList.find((c) => c.isDefault === 1) || cdnList[0];
-  const list = cdn.videoPathList || [];
+  const cdn = cdnList.find((c) => c?.isDefault === 1) || cdnList[0];
+  const list = Array.isArray(cdn?.videoPathList) ? cdn.videoPathList : [];
+
   const def =
-    list.find((v) => v.isDefault === 1) ||
-    list.find((v) => v.quality === 720) ||
+    list.find((v) => v?.isDefault === 1) ||
+    list.find((v) => v?.quality === 720) ||
     list[0] ||
     null;
+
   return { qualities: list, def };
 }
 
+// HOME
 app.get("/", async (req, res) => {
   try {
-    // yang sering 500 -> pakai safe
+    // foryou sering 500 -> safe
     const tasks = [
       apiGet("/vip"),
       apiGet("/latest"),
       apiGet("/trending"),
-      safeApiGet("/foryou", []) // <- FIX utama
+      safeApiGet("/foryou", [])
     ];
 
     const [vipR, latestR, trendingR, foryouR] = await Promise.allSettled(tasks);
 
-    const vip = vipR.status === "fulfilled" ? vipR.value : [];
-    const latest = latestR.status === "fulfilled" ? latestR.value : [];
-    const trending = trendingR.status === "fulfilled" ? trendingR.value : [];
-    const foryou = foryouR.status === "fulfilled" ? foryouR.value : [];
+    const vipRaw = vipR.status === "fulfilled" ? vipR.value : [];
+    const latestRaw = latestR.status === "fulfilled" ? latestR.value : [];
+    const trendingRaw = trendingR.status === "fulfilled" ? trendingR.value : [];
+    const foryouRaw = foryouR.status === "fulfilled" ? foryouR.value : [];
+
+    const vipArr = coerceArray(vipRaw);
+    const latestArr = coerceArray(latestRaw);
+    const trendingArr = coerceArray(trendingRaw);
+    const foryouArr = coerceArray(foryouRaw);
 
     const data = {
-      vip: (vip || []).slice(0, 18).map(normalizeDramaCard),
-      latest: (latest || []).slice(0, 18).map(normalizeDramaCard),
-      trending: (trending || []).slice(0, 18).map(normalizeDramaCard),
-      foryou: (foryou || []).slice(0, 18).map(normalizeDramaCard)
+      vip: vipArr.map(normalizeDramaCard).filter(Boolean).slice(0, 18),
+      latest: latestArr.map(normalizeDramaCard).filter(Boolean).slice(0, 18),
+      trending: trendingArr.map(normalizeDramaCard).filter(Boolean).slice(0, 18),
+      foryou: foryouArr.map(normalizeDramaCard).filter(Boolean).slice(0, 18)
     };
 
     if (isXHR(req)) return res.render("home", { layout: false, ...data });
@@ -118,20 +163,37 @@ app.get("/", async (req, res) => {
   }
 });
 
+// PLAYER
 app.get("/watch/:bookId", async (req, res) => {
   try {
     const { bookId } = req.params;
 
     const detailRaw = await apiGet(`/detail?bookId=${encodeURIComponent(bookId)}`);
-    const detail = Array.isArray(detailRaw) ? detailRaw[0] : detailRaw;
-    const drama = normalizeDramaCard(detail || {});
+    // detail kadang array / object
+    const detailObj = Array.isArray(detailRaw) ? detailRaw[0] : detailRaw;
+    const drama = normalizeDramaCard(detailObj || {}) || {
+      bookId,
+      bookName: "Untitled",
+      bookCover: "",
+      introduction: "",
+      playCount: "",
+      tags: [],
+      totalChapterNum: 0,
+      cdnList: [],
+      videoPath: ""
+    };
 
     const epRaw = await apiGet(`/allepisode?bookId=${encodeURIComponent(bookId)}`);
-    const chapters = Array.isArray(epRaw) ? epRaw : (epRaw?.chapters || epRaw?.chapterList || []);
+    const chaptersArr = coerceArray(epRaw);
 
     const { qualities, def } = pickDefaultQuality(drama.cdnList);
 
-    const payload = { drama, chapters, qualities, defaultQuality: def };
+    const payload = {
+      drama,
+      chapters: chaptersArr,
+      qualities,
+      defaultQuality: def
+    };
 
     if (isXHR(req)) return res.render("player", { layout: false, ...payload });
     res.render("player", { ...payload });
@@ -140,33 +202,46 @@ app.get("/watch/:bookId", async (req, res) => {
   }
 });
 
+// SEARCH PAGE (SSR/XHR)
 app.get("/search", async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
-    if (!q) return isXHR(req)
-      ? res.render("home", { layout: false, vip: [], latest: [], trending: [], foryou: [] })
-      : res.redirect("/");
+    if (!q) {
+      if (isXHR(req)) return res.render("home", { layout: false, vip: [], latest: [], trending: [], foryou: [] });
+      return res.redirect("/");
+    }
 
-    const result = await safeApiGet(`/search?query=${encodeURIComponent(q)}`, []);
-    const list = (result || []).map(normalizeDramaCard);
+    const raw = await safeApiGet(`/search?query=${encodeURIComponent(q)}`, []);
+    const arr = coerceArray(raw);
+    const list = arr.map(normalizeDramaCard).filter(Boolean);
 
-    if (isXHR(req)) return res.render("home", { layout: false, vip: list, latest: [], trending: [], foryou: [] });
-    res.render("home", { vip: list, latest: [], trending: [], foryou: [] });
+    // reuse home view: put results into vip slot
+    const data = { vip: list, latest: [], trending: [], foryou: [] };
+
+    if (isXHR(req)) return res.render("home", { layout: false, ...data });
+    res.render("home", { ...data });
   } catch (e) {
     res.status(500).send("Server error: " + e.message);
   }
 });
 
-app.get("/api/populersearch", async (req, res) => {
-  try { res.json(await safeApiGet("/populersearch", [])); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+// Realtime suggestions
+app.get("/api/populersearch", async (_req, res) => {
+  try {
+    const raw = await safeApiGet("/populersearch", []);
+    // populersearch bisa array string/object -> biarin apa adanya (frontend handle)
+    res.json(raw);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get("/api/search", async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
     if (!q) return res.json([]);
-    res.json(await safeApiGet(`/search?query=${encodeURIComponent(q)}`, []));
+    const raw = await safeApiGet(`/search?query=${encodeURIComponent(q)}`, []);
+    res.json(raw);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
