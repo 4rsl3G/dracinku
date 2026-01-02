@@ -120,6 +120,98 @@ window.PS_PLAYER_INIT = function () {
   function highlightEpisode(i) {
     epButtons.forEach((b, idx) => b.style.outline = (idx === i ? "1px solid rgba(255,255,255,.18)" : "none"));
   }
+    // ===== Swipe Reels Engine (UP = next, DOWN = prev) =====
+  const swipeToast = document.getElementById("swipeToast");
+  const shell = document.querySelector(".player-shell");
+
+  let touchStartY = 0;
+  let touchStartX = 0;
+  let touchStartT = 0;
+  let wheelLock = false;
+
+  function toast(txt) {
+    if (!swipeToast) return;
+    swipeToast.textContent = txt;
+    swipeToast.classList.remove("hidden");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => swipeToast.classList.add("hidden"), 650);
+  }
+
+  function goNext() {
+    const next = currentEpisode + 1;
+    if (next < epButtons.length) {
+      toast("NEXT");
+      loadEpisode(next, true, 0);
+    } else {
+      toast("END");
+    }
+  }
+
+  function goPrev() {
+    const prev = currentEpisode - 1;
+    if (prev >= 0) {
+      toast("PREV");
+      loadEpisode(prev, true, 0);
+    } else {
+      toast("TOP");
+    }
+  }
+
+  // Preload next for fast switch
+  let preloader = null;
+  function preloadNext() {
+    const next = currentEpisode + 1;
+    const src = getEpisodeSrc(next);
+    if (!src) return;
+    try {
+      preloader = document.createElement("link");
+      preloader.rel = "preload";
+      preloader.as = "video";
+      preloader.href = src;
+      document.head.appendChild(preloader);
+    } catch {}
+  }
+  preloadNext();
+
+  // hook preload after each episode load (wrap existing loadEpisode)
+  const _loadEpisode = loadEpisode;
+  loadEpisode = function(idx, autoplay = true, resumeTime = 0) {
+    _loadEpisode(idx, autoplay, resumeTime);
+    setTimeout(preloadNext, 500);
+  };
+
+  // Touch swipe
+  shell?.addEventListener("touchstart", (e) => {
+    const t = e.touches[0];
+    touchStartY = t.clientY;
+    touchStartX = t.clientX;
+    touchStartT = Date.now();
+  }, { passive: true });
+
+  shell?.addEventListener("touchend", (e) => {
+    const dt = Date.now() - touchStartT;
+    const t = e.changedTouches[0];
+    const dy = t.clientY - touchStartY;
+    const dx = t.clientX - touchStartX;
+
+    // dominan vertical & swipe cukup jauh
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 70 && dt < 600) {
+      if (dy < 0) goNext();    // swipe up
+      else goPrev();           // swipe down
+    }
+  }, { passive: true });
+
+  // Wheel swipe (desktop)
+  shell?.addEventListener("wheel", (e) => {
+    if (wheelLock) return;
+    if (Math.abs(e.deltaY) < 22) return;
+
+    wheelLock = true;
+    setTimeout(() => wheelLock = false, 420);
+
+    if (e.deltaY > 0) goNext();
+    else goPrev();
+  }, { passive: true });
 
   const posData = readJSON(POS_KEY(bookId), { episodeIndex: 0, time: 0, duration: 0, watched: [] });
   const watchedSet = new Set(posData.watched || []);
