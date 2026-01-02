@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PanStream</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet"/>
+
+  <link rel="stylesheet" href="/css/app.css"/>
+  <link rel="stylesheet" href="/css/player.css"/>
+
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+</head>
+<body>
+  <%- include('partials/_topbar') %>
+
+  <!-- SPA Loading Overlay -->
+  <div id="overlay" class="overlay hidden" aria-hidden="true">
+    <div class="overlay-box">
+      <div class="spinner"></div>
+      <div class="overlay-text">Loading…</div>
+    </div>
+  </div>
+
+  <main id="app" class="app">
+    <%- body %>
+  </main>
+
+  <!-- global -->
+  <script src="/js/spa.js"></script>
+  <script src="/js/topbar.js"></script>
+  <script src="/js/home.js"></script>
+  <script src="/js/player.js"></script>
+</body>
+</html>
