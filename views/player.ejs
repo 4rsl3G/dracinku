@@ -1,0 +1,118 @@
+<%
+const defaultSrc = defaultQuality?.videoPath || drama?.videoPath || "";
+%>
+
+<section class="watch">
+  <div class="watch-left">
+    <div class="player-shell vertical">
+      <video id="video" preload="metadata" playsinline></video>
+
+      <!-- dynamic watermark -->
+      <div id="wm" class="wm">PANSTREAM</div>
+
+      <!-- Resume prompt -->
+      <div id="resumePrompt" class="resume hidden">
+        <div class="box">
+          <div class="title">Lanjutkan menonton?</div>
+          <div class="sub" id="resumeText">Resume dari posisi terakhir.</div>
+          <div class="actions">
+            <button class="btn-sm primary" id="btnResume">Resume</button>
+            <button class="btn-sm ghost" id="btnRestart">Mulai dari awal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Up Next overlay -->
+      <div id="upNext" class="upnext hidden">
+        <div class="upbox">
+          <div class="u-title">Up Next</div>
+          <div class="u-sub" id="upNextText">Episode berikutnya</div>
+          <div class="u-actions">
+            <button class="btn-sm primary" id="btnPlayNext">Play Next</button>
+            <button class="btn-sm ghost" id="btnCancelNext">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- controls custom -->
+      <div class="controls" id="controls">
+        <button class="c-btn" id="btnPlay" title="Play/Pause"><i class="ri-play-fill"></i></button>
+
+        <div class="time">
+          <span id="cur">0:00</span>
+          <span class="sep">/</span>
+          <span id="dur">0:00</span>
+        </div>
+
+        <input id="seek" class="seek" type="range" min="0" max="1000" value="0"/>
+
+        <button class="c-btn" id="btnMute" title="Mute"><i class="ri-volume-up-line"></i></button>
+        <input id="vol" class="vol" type="range" min="0" max="100" value="80"/>
+
+        <div class="quality">
+          <button class="c-btn" id="btnQuality" title="Quality">
+            <i class="ri-hd-line"></i>
+            <span id="qLabel">Auto</span>
+          </button>
+          <div class="qmenu hidden" id="qMenu"></div>
+        </div>
+
+        <button class="c-btn" id="btnTheater" title="Theater (T)"><i class="ri-layout-2-line"></i></button>
+        <button class="c-btn" id="btnPip" title="PiP (P)"><i class="ri-picture-in-picture-2-line"></i></button>
+        <button class="c-btn" id="btnFs" title="Fullscreen (F)"><i class="ri-fullscreen-line"></i></button>
+      </div>
+
+      <!-- poster overlay -->
+      <div class="poster-info" id="posterInfo">
+        <div class="pi-title"><%= drama.bookName %></div>
+        <div class="pi-sub"><%= (drama.tags || []).slice(0,3).join(" • ") %></div>
+        <button class="btn" id="bigPlay"><i class="ri-play-fill"></i> Play</button>
+      </div>
+    </div>
+
+    <div class="detail">
+      <h1 class="d-title"><%= drama.bookName %></h1>
+      <p class="d-desc"><%= drama.introduction || "" %></p>
+      <div class="d-meta">
+        <span class="pill"><i class="ri-eye-line"></i> <%= drama.playCount || "—" %></span>
+        <span class="pill"><i class="ri-stack-line"></i> <%= drama.totalChapterNum || (chapters?.length || "—") %> eps</span>
+        <span class="pill"><i class="ri-aspect-ratio-line"></i> Vertical Player</span>
+      </div>
+    </div>
+  </div>
+
+  <aside class="watch-right">
+    <div class="side-head">
+      <div class="side-title">Episodes</div>
+      <div class="side-sub"><%= chapters?.length || 0 %> items</div>
+    </div>
+
+    <div class="eps" id="eps">
+      <% (chapters || []).forEach(function(c, idx){ %>
+        <button class="ep"
+          data-idx="<%= idx %>"
+          data-src="<%= c.videoPath || '' %>"
+          data-title="Episode <%= (c.chapterIndex ?? idx) + 1 %>">
+          <span class="ep-left">
+            <i class="ri-play-circle-line"></i>
+            Episode <%= (c.chapterIndex ?? idx) + 1 %>
+          </span>
+          <span class="ep-right"><i class="ri-arrow-right-s-line"></i></span>
+        </button>
+      <% }) %>
+    </div>
+  </aside>
+</section>
+
+<script>
+  window.__page = "player";
+  window.__PLAYER_BOOT = {
+    bookId: "<%= drama.bookId %>",
+    title: "<%= (drama.bookName || '').replaceAll('\"','') %>",
+    cover: "<%= drama.bookCover || '' %>",
+    defaultSrc: "<%= defaultSrc %>",
+    qualities: <%- JSON.stringify(qualities || []) %>,
+    defaultQuality: <%- JSON.stringify(defaultQuality || null) %>,
+    chaptersCount: <%= (chapters || []).length %>
+  };
+</script>
